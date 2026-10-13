@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.duckdb
+*.sqlite
+data/*.sqlite
+.pytest_cache/
+.streamlit/secrets.toml
+eval_runs/
+.ipynb_checkpoints/
