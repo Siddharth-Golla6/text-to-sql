@@ -76,13 +76,28 @@ class SQLAgent:
     def _generate_sql(self, question: str, tables: list[TableProfile]) -> str:
         schema_block = "\n\n".join(t.to_prompt_block() for t in tables)
         prompt = self._prompt_template.format(schema=schema_block, question=question)
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=500,
-        )
-        return resp.choices[0].message.content.strip()
+        # Groq's gpt-oss-* models reserve tokens for a hidden reasoning channel,
+        # which can truncate the SQL. 2000 leaves plenty of headroom for both.
+        kwargs: dict = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.0,
+            "max_tokens": 2000,
+        }
+        if "gpt-oss" in self.model:
+            kwargs["reasoning_effort"] = "low"
+
+        # Retry on free-tier rate limits (Groq caps at 8000 TPM).
+        from groq import RateLimitError
+        for attempt in range(3):
+            try:
+                resp = self.client.chat.completions.create(**kwargs)
+                return resp.choices[0].message.content.strip()
+            except RateLimitError as e:
+                if attempt == 2:
+                    raise
+                time.sleep(2.0 * (attempt + 1))
+        raise RuntimeError("unreachable")
 
     def _execute(self, sql: str) -> pd.DataFrame:
         con = duckdb.connect(self.db_path, read_only=True)

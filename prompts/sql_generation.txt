@@ -9,9 +9,21 @@ RULES
 - Prefer explicit JOINs over implicit (comma) joins.
 - Quote identifiers with double quotes when needed; column and table names are case-sensitive.
 - Only SELECT. Never DDL / DML.
-- Add appropriate aggregations, GROUP BY, ORDER BY as needed.
+- Return the MINIMUM columns that answer the question. Do NOT include surrogate
+  ids (e.g. "GenreId", "TrackId", "CustomerId") unless the question specifically
+  asks for an id. For "who" questions on people, concatenate first + last name
+  into a single column named after the role (customer, employee, artist, …).
+- When the question uses a superlative ("most/least/top/highest/lowest"),
+  include the aggregated value alongside the entity so the answer is auditable
+  (e.g. return `(country, n_customers)`, not just `country`).
+- Preserve the raw units stored in the schema; do NOT convert them unless the
+  question asks (keep "Milliseconds" in ms, not seconds; keep bytes in bytes).
+- Preserve every numeric or categorical filter the question states (e.g.
+  "greater than 20 dollars" MUST become `HAVING SUM(...) > 20`, not a bare HAVING).
+- Add aggregations, GROUP BY, ORDER BY as the question demands.
 - If the question is ambiguous, choose the most natural interpretation and proceed.
-- Return a reasonable number of rows (<= 500). Add LIMIT if the question implies a top-N.
+- Return a reasonable number of rows (<= 500). Add LIMIT when the question
+  implies a top-N; otherwise omit LIMIT and let the harness add one.
 
 SCHEMA
 {schema}
@@ -21,12 +33,23 @@ FEW-SHOT EXAMPLES
 Q: How many customers do we have?
 SQL: SELECT COUNT(*) AS n_customers FROM "Customer";
 
+Q: List all music genres.
+SQL: SELECT "Name" AS genre FROM "Genre" ORDER BY "Name";
+
 Q: Top 5 countries by revenue.
 SQL: SELECT c."Country", ROUND(SUM(i."Total"), 2) AS revenue
 FROM "Invoice" i JOIN "Customer" c USING ("CustomerId")
 GROUP BY c."Country"
 ORDER BY revenue DESC
 LIMIT 5;
+
+Q: Which employee has the most customers?
+SQL: SELECT e."FirstName" || ' ' || e."LastName" AS employee,
+            COUNT(c."CustomerId") AS n_customers
+FROM "Employee" e JOIN "Customer" c ON c."SupportRepId" = e."EmployeeId"
+GROUP BY employee
+ORDER BY n_customers DESC
+LIMIT 1;
 
 Q: Monthly revenue in 2010.
 SQL: SELECT date_trunc('month', "InvoiceDate")::DATE AS month,
@@ -36,12 +59,16 @@ WHERE EXTRACT(YEAR FROM "InvoiceDate") = 2010
 GROUP BY month
 ORDER BY month;
 
-Q: Which artist has the most albums?
-SQL: SELECT a."Name" AS artist, COUNT(al."AlbumId") AS n_albums
-FROM "Artist" a JOIN "Album" al USING ("ArtistId")
-GROUP BY a."Name"
-ORDER BY n_albums DESC
-LIMIT 1;
+Q: List artists whose total album revenue is greater than 50 dollars.
+SQL: SELECT ar."Name" AS artist,
+            ROUND(SUM(il."UnitPrice" * il."Quantity"), 2) AS revenue
+FROM "InvoiceLine" il
+JOIN "Track" t USING ("TrackId")
+JOIN "Album" al USING ("AlbumId")
+JOIN "Artist" ar USING ("ArtistId")
+GROUP BY ar."Name"
+HAVING SUM(il."UnitPrice" * il."Quantity") > 50
+ORDER BY revenue DESC;
 
 QUESTION
 {question}
