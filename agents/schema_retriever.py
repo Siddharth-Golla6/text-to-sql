@@ -21,6 +21,12 @@ from sentence_transformers import SentenceTransformer
 
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
+# Pin the embedding backend to CPU. The MiniLM model is tiny (~22M params) and
+# runs comfortably on CPU; forcing CPU also keeps us compatible with HF
+# ZeroGPU, which treats stray `torch._C._cuda_init()` outside a @spaces.GPU
+# function as a hard failure.
+_EMBED_DEVICE = "cpu"
+
 
 @dataclass
 class TableProfile:
@@ -61,7 +67,7 @@ class SchemaRetriever:
     @property
     def model(self) -> SentenceTransformer:
         if self._model is None:
-            self._model = SentenceTransformer(EMBED_MODEL)
+            self._model = SentenceTransformer(EMBED_MODEL, device=_EMBED_DEVICE)
         return self._model
 
     def build(self) -> None:
@@ -74,7 +80,10 @@ class SchemaRetriever:
             con.close()
         docs = [p.description + "\n" + p.to_prompt_block() for p in self._profiles]
         self._embeddings = self.model.encode(
-            docs, normalize_embeddings=True, show_progress_bar=False
+            docs,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+            device=_EMBED_DEVICE,
         )
 
     def _profile_table(self, con: duckdb.DuckDBPyConnection, table: str) -> TableProfile:
@@ -143,7 +152,9 @@ class SchemaRetriever:
     def retrieve(self, question: str) -> List[TableProfile]:
         if self._embeddings is None:
             raise RuntimeError("Call build() first")
-        q_emb = self.model.encode([question], normalize_embeddings=True)[0]
+        q_emb = self.model.encode(
+            [question], normalize_embeddings=True, device=_EMBED_DEVICE
+        )[0]
         scores = self._embeddings @ q_emb
         idx = np.argsort(-scores)[: self.top_k]
         return [self._profiles[i] for i in idx]

@@ -56,7 +56,7 @@ class SQLAgent:
         self.db_path = db_path or os.getenv("DB_PATH", "data/chinook.duckdb")
         if not Path(self.db_path).is_absolute():
             self.db_path = str(PROJECT_ROOT / self.db_path)
-        self.model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model = model or os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
         self.top_k = int(os.getenv("TOP_K_TABLES", str(top_k)))
 
         api_key = os.getenv("GROQ_API_KEY")

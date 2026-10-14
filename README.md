@@ -4,7 +4,7 @@ emoji: 📊
 colorFrom: blue
 colorTo: purple
 sdk: gradio
-sdk_version: 4.44.1
+sdk_version: 5.38.0
 app_file: app.py
 pinned: false
 license: mit
@@ -21,8 +21,7 @@ on **engineering around the LLM**, not just prompting it: schema-aware
 retrieval, SQL safety validation with a real parser, and a measurable
 execution-accuracy benchmark.
 
-> **Status:** working end-to-end on the Chinook music-store dataset (DuckDB).
-> Reproducible eval report lives at [`evals/last_run.md`](evals/last_run.md).
+> **Live demo:** <https://sidduu01-text-to-sql.hf.space> · **Source:** <https://github.com/Siddharth-Golla6/text-to-sql> · **Status:** working end-to-end on the Chinook music-store dataset (DuckDB). Reproducible eval report lives at [`evals/last_run.md`](evals/last_run.md).
 
 ## Eval results on a 20-question benchmark
 

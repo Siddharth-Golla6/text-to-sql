@@ -92,6 +92,16 @@ def main() -> None:
         key="GROQ_API_KEY",
         value=groq_key,
     )
+    # Also propagate the model choice from .env so the Space tracks local tuning.
+    groq_model = env.get("GROQ_MODEL")
+    if groq_model:
+        print(f"[deploy] Setting GROQ_MODEL={groq_model} as a Space variable...")
+        try:
+            api.add_space_variable(
+                repo_id=repo_id, key="GROQ_MODEL", value=groq_model,
+            )
+        except Exception as e:
+            print(f"[deploy] WARN: could not set GROQ_MODEL variable: {e}")
 
     # 5. Upload everything that isn't ignored.
     print("[deploy] Uploading files...")
