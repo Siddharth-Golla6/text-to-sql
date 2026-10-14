@@ -3,8 +3,8 @@ title: Text To SQL Analytics Assistant
 emoji: 📊
 colorFrom: blue
 colorTo: purple
-sdk: streamlit
-sdk_version: 1.38.0
+sdk: gradio
+sdk_version: 4.44.1
 app_file: app.py
 pinned: false
 license: mit
@@ -51,7 +51,7 @@ This repo demonstrates:
 - **Schema retrieval**, not schema dumping — scales to 200-table warehouses
 - **SQL safety validator** using `sqlglot`, not regex
 - **Execution-accuracy evaluation** on a 20-question benchmark
-- **A real Streamlit app**, not just a notebook
+- **A real Gradio app on HF Spaces**, not just a notebook
 
 ---
 
@@ -75,8 +75,8 @@ This repo demonstrates:
                                    │                  ▼
                                    ▼            ┌───────────┐
                             ┌─────────────┐     │ Plotly    │
-                            │ Streamlit   │◀────│ auto-pick │
-                            │ UI          │     │ chart     │
+                            │ Gradio UI   │◀────│ auto-pick │
+                            │ (HF Spaces) │     │ chart     │
                             └─────────────┘     └───────────┘
 ```
 
@@ -113,8 +113,8 @@ python data/setup_db.py
 cp .env.example .env     # Windows: copy .env.example .env
 # Edit .env and set GROQ_API_KEY (free key: https://console.groq.com/keys)
 
-# 4. Run the Streamlit app
-streamlit run app/streamlit_app.py
+# 4. Run the Gradio app
+python app.py
 ```
 
 Open http://localhost:8501.
@@ -157,8 +157,7 @@ is the business answer — so we compare *the data*.
 
 ```
 text-to-sql/
-├── app/
-│   └── streamlit_app.py          # UI
+├── gradio_app.py                 # UI (Gradio Blocks)
 ├── agents/
 │   ├── sql_agent.py              # orchestration + rate-limit retry
 │   ├── schema_retriever.py       # table profiles + embeddings
