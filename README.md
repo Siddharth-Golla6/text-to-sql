@@ -8,7 +8,7 @@ sdk_version: 4.44.1
 app_file: app.py
 pinned: false
 license: mit
-short_description: Natural-language analytics over DuckDB with schema-aware retrieval + SQL safety + grounded insights.
+short_description: English to safe SQL + chart + insight over DuckDB.
 ---
 
 # Text-to-SQL Analytics Assistant
