@@ -36,46 +36,68 @@ QUESTIONS = PROJECT_ROOT / "evals" / "questions.jsonl"
 REPORT_DIR = PROJECT_ROOT / "evals"
 
 
-def normalize(df: pd.DataFrame, order_matters: bool) -> pd.DataFrame:
-    """Normalize a result for comparison."""
+def _row_as_str_tuple(row) -> tuple:
+    """Row values as strings, handling NaN and dtype wobble."""
+    out = []
+    for v in row:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            out.append("")
+        elif isinstance(v, float):
+            # Round and strip trailing zeros so 6.66 and 6.660000... compare equal.
+            out.append(f"{round(v, 2):.2f}")
+        else:
+            out.append(str(v))
+    return tuple(out)
+
+
+def df_to_str_rows(df: pd.DataFrame) -> list[tuple]:
+    """Convert a DataFrame to a list of string-tuples; ignores column names + dtypes."""
     if df is None:
-        return pd.DataFrame()
+        return []
     d = df.copy()
-    # Round all floats to 2 decimals so Groq's casting choices don't trip us up.
-    for c in d.select_dtypes(include="float").columns:
-        d[c] = d[c].round(2)
-    # Convert dates to strings.
     for c in d.columns:
         if pd.api.types.is_datetime64_any_dtype(d[c]):
             d[c] = d[c].dt.strftime("%Y-%m-%d")
-    # Sort rows if order doesn't matter.
-    if not order_matters:
-        d = d.sort_values(by=list(d.columns)).reset_index(drop=True)
-    else:
-        d = d.reset_index(drop=True)
-    return d
+    return [_row_as_str_tuple(r) for r in d.itertuples(index=False, name=None)]
+
+
+def _rows_match_with_ties(gold_rows: list[tuple], pred_rows: list[tuple]) -> bool:
+    """Order-sensitive compare that tolerates tied rows being in any order.
+
+    Groups consecutive rows in gold whose sort-defining value (last column) is
+    equal into a block; the predicted rows at those positions must be a
+    permutation of the gold block.
+    """
+    if len(gold_rows) != len(pred_rows):
+        return False
+    # Find tie-blocks in gold using the LAST column (the one typically ordered by).
+    # Fall back: no ties → straight compare.
+    if gold_rows == pred_rows:
+        return True
+    i = 0
+    while i < len(gold_rows):
+        j = i + 1
+        key = gold_rows[i][-1]
+        while j < len(gold_rows) and gold_rows[j][-1] == key:
+            j += 1
+        if sorted(gold_rows[i:j]) != sorted(pred_rows[i:j]):
+            return False
+        i = j
+    return True
 
 
 def results_match(gold: pd.DataFrame, pred: pd.DataFrame, order_matters: bool) -> bool:
-    g = normalize(gold, order_matters)
-    p = normalize(pred, order_matters)
-
-    # Shape must match.
-    if g.shape != p.shape:
+    g_rows = df_to_str_rows(gold)
+    p_rows = df_to_str_rows(pred)
+    if len(g_rows) != len(p_rows):
         return False
-
-    # Compare values set-wise per row (column-order-independent).
-    g_rows = sorted(tuple(sorted(zip(g.columns, row))) for row in g.itertuples(index=False, name=None))
-    p_rows = sorted(tuple(sorted(zip(p.columns, row))) for row in p.itertuples(index=False, name=None))
-
-    if g_rows == p_rows:
+    if not g_rows:
         return True
-
-    # Fall back to position-based numeric comparison (handles different aliasing).
-    try:
-        return (g.values == p.values).all()
-    except Exception:
+    if len(g_rows[0]) != len(p_rows[0]):
         return False
+    if not order_matters:
+        return sorted(g_rows) == sorted(p_rows)
+    return _rows_match_with_ties(g_rows, p_rows)
 
 
 ORDER_KEYWORDS = re.compile(r"\b(top|first|last|highest|lowest|most|least|order|rank|trend|over time|monthly|yearly|by month|by year)\b", re.I)
@@ -130,6 +152,7 @@ def main() -> None:
             except Exception as e:
                 reason = f"gold_sql failed: {e}"
 
+        passed = bool(passed)
         passes += int(passed)
 
         results.append({

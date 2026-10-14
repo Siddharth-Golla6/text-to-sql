@@ -4,7 +4,7 @@ Deploy this project to a Hugging Face Streamlit Space.
 Before running:
     1. Create a free HF token at https://huggingface.co/settings/tokens
        (needs "Write" permission).
-    2. huggingface-cli login     # paste the token
+    2. hf auth login             # paste the token when prompted
     3. Make sure .env has your real GROQ_API_KEY.
 
 Then:
@@ -55,7 +55,7 @@ def main() -> None:
     except Exception as e:
         sys.exit(
             "Not logged in to Hugging Face.\n"
-            "Run:  huggingface-cli login\n"
+            "Run:  hf auth login\n"
             f"(details: {e})"
         )
     user = who["name"]

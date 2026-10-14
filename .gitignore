@@ -6,6 +6,7 @@ venv/
 *.duckdb
 *.sqlite
 data/*.sqlite
+data/schema_cache.json
 .pytest_cache/
 .streamlit/secrets.toml
 eval_runs/

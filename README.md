@@ -22,7 +22,21 @@ retrieval, SQL safety validation with a real parser, and a measurable
 execution-accuracy benchmark.
 
 > **Status:** working end-to-end on the Chinook music-store dataset (DuckDB).
-> See the eval report in `evals/last_run.md` after you run the harness.
+> Reproducible eval report lives at [`evals/last_run.md`](evals/last_run.md).
+
+## Eval results on a 20-question benchmark
+
+| Metric | Value |
+|---|---|
+| Execution accuracy | **95%** (19/20) |
+| SQL validity rate  | 95% |
+| Easy / Medium / Hard | 5/5 · 7/7 · 7/8 |
+| Latency (median)   | 11.6 s |
+| Latency (p95)      | 15.7 s |
+
+Model: `qwen/qwen3.8-27b` on Groq free tier. The single failure is Q20
+(nested-subquery alias scoping) — a real model slip, not a comparator artifact.
+Rerun with `python evals/run_eval.py`.
 
 ---
 
@@ -71,7 +85,7 @@ This repo demonstrates:
 | Step | Component | Why |
 |---|---|---|
 | 1 | `SchemaRetriever` embeds every table profile with `all-MiniLM-L6-v2`; top-k by cosine | Keeps the prompt short and lets the system scale beyond 10-table toys |
-| 2 | Groq `llama-3.3-70b-versatile` + 4 few-shot examples | Free, fast, strong SQL quality |
+| 2 | Groq `qwen/qwen3.8-27b` + 5 few-shot examples | Free, fast, 95% execution accuracy on the eval |
 | 3 | `sqlglot` parses the SQL, rejects anything that isn't a single `SELECT`/`WITH`, auto-adds `LIMIT 500` | Blocks `DROP`/`DELETE`/`UPDATE`/`INSERT`/`ALTER` even if the LLM is tricked |
 | 4 | DuckDB executes read-only against the Chinook database | Zero-infrastructure analytical SQL |
 | 5 | Narrator LLM call grounded on the returned rows (first 20) | Small, factual, cheap |
@@ -83,7 +97,7 @@ This repo demonstrates:
 
 ```bash
 # 1. Clone & install
-git clone https://github.com/<your-user>/text-to-sql.git
+git clone https://github.com/Siddharth-Golla6/text-to-sql.git
 cd text-to-sql
 python -m venv .venv
 # Windows PowerShell:
@@ -146,21 +160,23 @@ text-to-sql/
 ├── app/
 │   └── streamlit_app.py          # UI
 ├── agents/
-│   ├── sql_agent.py              # orchestration
+│   ├── sql_agent.py              # orchestration + rate-limit retry
 │   ├── schema_retriever.py       # table profiles + embeddings
 │   ├── safety_validator.py       # sqlglot-based SQL guard
 │   └── narrator.py               # grounded insight generator
 ├── prompts/
-│   ├── sql_generation.txt        # system prompt + 4 few-shots
+│   ├── sql_generation.txt        # system prompt + 5 few-shots
 │   └── narration.txt
 ├── evals/
 │   ├── questions.jsonl           # 20 benchmark questions
 │   ├── run_eval.py               # execution-accuracy harness
-│   ├── last_run.json             # generated
-│   └── last_run.md               # generated
+│   ├── last_run.json             # eval output
+│   └── last_run.md               # readable report (95% accuracy)
 ├── data/
 │   ├── setup_db.py               # downloads Chinook + builds DuckDB
-│   └── chinook.duckdb            # generated
+│   └── chinook.duckdb            # generated locally; built on HF Spaces first run
+├── app.py                        # HF Spaces entry point (bootstraps DB)
+├── deploy_to_hf.py               # one-command Space deployment
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -170,9 +186,9 @@ text-to-sql/
 
 ## Design decisions
 
-1. **Groq free tier (llama-3.3-70b-versatile)** over OpenAI/Claude.
-   Reason: zero cost, 10× faster for interactive use, SQL quality is excellent
-   for this schema size.
+1. **Groq free tier (`qwen/qwen3.8-27b`)** over OpenAI/Claude.
+   Reason: zero cost, interactive-fast, best execution accuracy on our eval
+   among the open-weight models Groq offers.
 2. **DuckDB** over Postgres/MySQL.
    Reason: single-file, no server, reads Parquet/SQLite directly, massively
    faster for the demo. Dialect is close enough to Postgres that the SQL ports
@@ -218,12 +234,13 @@ text-to-sql/
 
 ---
 
-## Resume bullet (fill in your real number after running the eval)
+## Resume bullet
 
 > Built a text-to-SQL analytics assistant over an 11-table Chinook warehouse in
-> DuckDB; achieved **X% execution accuracy** on a 20-question benchmark using
+> DuckDB; achieved **95% execution accuracy** on a 20-question benchmark using
 > schema-aware retrieval (sentence-transformers), `sqlglot`-based SQL safety
-> validation, and a grounded insight narrator. Deployed on Streamlit.
+> validation, and a grounded insight narrator. Deployed on Hugging Face Spaces
+> (Streamlit) with reproducible eval harness.
 
 ---
 
