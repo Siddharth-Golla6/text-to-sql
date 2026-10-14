@@ -72,11 +72,15 @@ def main() -> None:
     api = HfApi()
 
     # 3. Create the Space if it doesn't exist.
-    print(f"[deploy] Creating Space (if new)...")
+    # HF Spaces now gates free cpu-basic Docker/Gradio behind PRO. The free
+    # alternative is Gradio on ZeroGPU (zero-a10g) — serverless, GPU on-demand,
+    # fine for a text-to-SQL app that only uses CPU + an external LLM API.
+    print(f"[deploy] Creating Space (if new) on ZeroGPU...")
     create_repo(
         repo_id=repo_id,
         repo_type="space",
-        space_sdk="streamlit",
+        space_sdk="gradio",
+        space_hardware="zero-a10g",
         private=args.private,
         exist_ok=True,
     )
@@ -110,6 +114,7 @@ def main() -> None:
             "evals/last_run.md",
             ".git/**",
             "deploy_to_hf.py",   # no need to ship the deploy script to the Space
+            "Dockerfile",        # legacy; we deploy via gradio sdk
         ],
         commit_message="Deploy text-to-sql Streamlit Space",
     )
