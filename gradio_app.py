@@ -15,6 +15,22 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from agents.sql_agent import SQLAgent  # noqa: E402
 
+# HF ZeroGPU: spaces lives only on the Space container; locally it's a no-op.
+try:
+    import spaces  # type: ignore
+    _IS_ZEROGPU = True
+except ImportError:
+    _IS_ZEROGPU = False
+
+    class _SpacesStub:
+        @staticmethod
+        def GPU(duration=60):
+            def decorator(f):
+                return f
+            return decorator
+
+    spaces = _SpacesStub()  # type: ignore
+
 
 EXAMPLES = [
     "How many customers do we have?",
@@ -83,6 +99,25 @@ def _fmt_timing(ms: dict) -> str:
     return "| step | ms |\n|---|---|\n" + "\n".join(rows)
 
 
+@spaces.GPU(duration=1)
+def _zero_gpu_warmup():
+    """Dummy function so ZeroGPU accepts this Space.
+
+    ZeroGPU requires at least one `@spaces.GPU`-decorated function at import
+    time. The real pipeline doesn't need GPU: Groq hosts the LLM, the local
+    sentence-transformers model is pinned to CPU, and the Groq client holds
+    thread locks that aren't picklable across ZeroGPU's process boundary — so
+    we keep the pipeline in the main process and leave this stub to satisfy
+    the gate.
+    """
+    import torch  # noqa: F401
+    return "ok"
+
+
+def _run_agent(agent, question: str):
+    return agent.ask(question, with_narrative=True)
+
+
 def ask(question: str):
     """Full pipeline. Returns outputs in the order Gradio expects."""
     if not question or not question.strip():
@@ -97,15 +132,28 @@ def ask(question: str):
     try:
         agent = get_agent()
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
         return (
-            gr.update(value=f"**Agent failed to start:** {e}", visible=True),
+            gr.update(value=f"**Agent failed to start:** {e}\n\n```\n{tb[-800:]}\n```", visible=True),
             gr.update(visible=False),
             gr.update(value=None, visible=False),
             gr.update(value=pd.DataFrame(), visible=False),
             "", "", "",
         )
 
-    res = agent.ask(question, with_narrative=True)
+    try:
+        res = _run_agent(agent, question)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        return (
+            gr.update(value=f"**Pipeline error:** {e}\n\n```\n{tb[-800:]}\n```", visible=True),
+            gr.update(visible=False),
+            gr.update(value=None, visible=False),
+            gr.update(value=pd.DataFrame(), visible=False),
+            "", "", "",
+        )
 
     error_block = gr.update(visible=False)
     narrative_block = gr.update(visible=False)
